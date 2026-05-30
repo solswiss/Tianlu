@@ -9,9 +9,9 @@ import (
 type User struct {
 	ID            bson.ObjectID      `bson:"_id,omitempty" json:"_id,omitempty"`
 	UserID        string             `bson:"user_id" json:"user_id"`
-	Username      string             `bson:"username" json:"username" validate:"required,min=1,max=20"`
-	Email         string             `bson:"email" json:"email" validate:"omitempty,email"`
-	Password      string             `bson:"password" json:"password" validate:"omitempty,min=3"`
+	Username      string             `bson:"username" json:"username" validate:"required,min=1,max=20,excludes= "`
+	Email         string             `bson:"email" json:"email" validate:"omitempty,email,excludes= "`
+	Password      string             `bson:"password" json:"password" validate:"omitempty,min=3,excludes= "`
 	Role          string             `bson:"role" json:"role" validate:"required,oneof=admin user guest"`
 	PalateProfile map[string]float64 `bson:"palate_profile" json:"palate_profile" validate:"dive"`
 	TasteSummary  string             `bson:"taste_summary" json:"taste_summary"`

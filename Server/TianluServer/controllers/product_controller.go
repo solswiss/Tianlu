@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/solswiss/Tianlu/Server/TianluServer/database"
@@ -18,16 +19,17 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-var productCollection *mongo.Collection = database.OpenCollection("products")
 var validate = validator.New()
 
 // LOCAL GET / FETCH / RETRIEVE
-func GetProducts() gin.HandlerFunc {
+func GetProducts(client *mongo.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+		ctx, cancel := context.WithTimeout(c, 100*time.Second)
 		defer cancel()
 
 		var products []models.Product
+
+		productCollection := database.OpenCollection(client, "products")
 
 		cursor, err := productCollection.Find(ctx, bson.M{})
 
@@ -44,9 +46,9 @@ func GetProducts() gin.HandlerFunc {
 	}
 }
 
-func GetProduct() gin.HandlerFunc {
+func GetProduct(client *mongo.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+		ctx, cancel := context.WithTimeout(c, 100*time.Second)
 		defer cancel()
 
 		productID := c.Param("product_id")
@@ -58,9 +60,9 @@ func GetProduct() gin.HandlerFunc {
 
 		var product models.Product
 
-		err := productCollection.FindOne(ctx, bson.M{"product_id": productID}).Decode(&product)
+		productCollection := database.OpenCollection(client, "products")
 
-		if err != nil {
+		if err := productCollection.FindOne(ctx, bson.M{"product_id": productID}).Decode(&product); err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
 			return
 		}
@@ -69,32 +71,45 @@ func GetProduct() gin.HandlerFunc {
 	}
 }
 
-// OFF SEARCH
-func OFFProductTextSearch(c *gin.Context, search string) {
-	if search == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Query cannot be empty"})
-		return
-	}
-
-	res, err := services.SearchOFFProducts(search)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, res)
-}
-
-func SearchProductString() gin.HandlerFunc {
+// SEARCH
+// search products by string query
+func SearchProducts(client *mongo.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// search := c.Query("query") handles messy stuff (e.g. slashes, question marks, etc.) works for /api/product/?query=test%20test
-		// search := c.Param("query") looks like /api/product/test%20test
-		search := c.Query("query")
-		OFFProductTextSearch(c, search)
+		query := c.Query("query")
+		if query == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Query cannot be empty"})
+			return
+		}
+
+		productCollection := database.OpenCollection(client, "products")
+
+		localProducts, err := utils.SearchLocalProducts(c, productCollection, query)
+
+		// lim first 10
+		if err == nil && len(localProducts) > 9 {
+			c.JSON(http.StatusOK, localProducts[:10])
+		}
+
+		OFFProducts, err := services.SearchOFFProducts(query)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch product data from OFF"})
+			log.Println("Warning: Failed to fetch products from OFF")
+			return
+		}
+
+		res := utils.MergeSearchedProducts(c, productCollection, localProducts, OFFProducts)
+
+		if len(res) < 10 {
+			c.JSON(http.StatusOK, res)
+			return
+		}
+
+		c.JSON(http.StatusOK, res[:10])
 	}
 }
 
-func SearchProductByID() gin.HandlerFunc {
+// search product by product barcode
+func SearchProductByID(client *mongo.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		barcode := c.Param("barcode")
 		if len(barcode) == 0 {
@@ -102,11 +117,14 @@ func SearchProductByID() gin.HandlerFunc {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+		ctx, cancel := context.WithTimeout(c, 100*time.Second)
 		defer cancel()
 
 		// search local db
 		var res models.Product
+
+		productCollection := database.OpenCollection(client, "products")
+
 		err := productCollection.FindOne(ctx, bson.M{"product_id": barcode}).Decode(&res)
 		// not found -> search OFF
 		if err == mongo.ErrNoDocuments {
@@ -116,7 +134,7 @@ func SearchProductByID() gin.HandlerFunc {
 				return
 			}
 			// transform, add to local db, then show
-			p, err := utils.FormatOFFProduct(res)
+			p, err := utils.FormatOFFProduct(c, res)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -132,44 +150,10 @@ func SearchProductByID() gin.HandlerFunc {
 	}
 }
 
-// SEARCH
-func SearchProducts() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		query := c.Query("query")
-		if query == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Query cannot be empty"})
-			return
-		}
-
-		localProducts, err := utils.SearchLocalProducts(productCollection, query)
-
-		// lim first 10
-		if err == nil && len(localProducts) > 9 {
-			c.JSON(http.StatusOK, localProducts[:10])
-		}
-
-		OFFProducts, err := services.SearchOFFProducts(query)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch product data from OFF"})
-			log.Println("Warning: Failed to fetch products from OFF")
-			return
-		}
-
-		res := utils.MergeSearchedProducts(productCollection, localProducts, OFFProducts)
-
-		if len(res) < 10 {
-			c.JSON(http.StatusOK, res)
-			return
-		}
-
-		c.JSON(http.StatusOK, res[:10])
-	}
-}
-
 // ADD
-func AddProduct() gin.HandlerFunc {
+func AddProduct(client *mongo.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+		ctx, cancel := context.WithTimeout(c, 100*time.Second)
 		defer cancel()
 
 		var product models.Product
@@ -183,6 +167,8 @@ func AddProduct() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Validation failed", "details": err.Error()})
 			return
 		}
+
+		productCollection := database.OpenCollection(client, "products")
 
 		result, err := productCollection.InsertOne(ctx, product)
 
@@ -204,12 +190,29 @@ func AddProduct() gin.HandlerFunc {
 // UPDATE
 // admin-only modifiable fields
 type UpdateProductInput struct {
-	Categories []string `json:"category"`
-	ImageURL   string   `json:"image_url"`
+	Brand          string   `json:"brand"`
+	Origin         string   `json:"origin"`
+	Categories     []string `json:"category"`
+	FlavorProfile  []string `json:"flavor_profile"`
+	TextureProfile []string `json:"texture_profile"`
+	ImageURL       string   `json:"image_url"`
+	Images         []string `json:"images_url"`
+	ImageMiniURL   string   `json:"image_mini_url"`
+	Description    string   `json:"description"`
 }
 
-func UpdateProduct() gin.HandlerFunc {
+func UpdateProduct(client *mongo.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		role, err := utils.GetUserRoleFromContext(c)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if role != "admin" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "User must be an administrator"})
+			return
+		}
+
 		// get barcode UID
 		barcode := c.Param("barcode")
 
@@ -230,16 +233,29 @@ func UpdateProduct() gin.HandlerFunc {
 			updateData["image_url"] = input.ImageURL
 		}
 
+		ctx, cancel := context.WithTimeout(c, 100*time.Second)
+		defer cancel()
+
+		productCollection := database.OpenCollection(client, "products")
+
+		var p models.Product
+		if err := productCollection.FindOne(ctx, bson.M{"product_id": barcode}).Decode(&p); err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "No product found with provided ID"})
+			return
+		}
+
+		// add image url if new
+		if !slices.Contains(p.Images, input.ImageURL) {
+			updateData["images_url"] = append(p.Images, input.ImageURL)
+		}
+
 		if len(updateData) == 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "No valid fields provided for update"})
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
-		defer cancel()
-
 		// update document
-		result, err := productCollection.UpdateOne(ctx, bson.M{"barcode": barcode}, bson.M{"$set": updateData})
+		result, err := productCollection.UpdateOne(ctx, bson.M{"product_id": barcode}, bson.M{"$set": updateData})
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update product"})
 			return
@@ -251,5 +267,18 @@ func UpdateProduct() gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "Product updated successfully"})
+	}
+}
+
+// RECOMMENDATION
+func GetRecommendedProducts(client *mongo.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, err := utils.GetUserIDFromContext(c)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		// get recommended products using userID
+		c.JSON(http.StatusOK, gin.H{"message": "Sorry " + userID + ", this feature is still in development"})
 	}
 }

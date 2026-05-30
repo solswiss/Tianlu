@@ -14,20 +14,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
-var userCollection *mongo.Collection = database.OpenCollection("users")
-
-func HashPassword(pw string) (string, error) {
-	password, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
-	if err != nil {
-		return "", err // panic
-	}
-	return string(password), nil
-}
-
-func RegisterUser() gin.HandlerFunc {
+func RegisterUser(client *mongo.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var user models.User
 
@@ -42,16 +33,18 @@ func RegisterUser() gin.HandlerFunc {
 			return
 		}
 
-		pw, err := HashPassword(user.Password)
+		pw, err := utils.HashPassword(user.Password)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
 			return
 		}
 
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		var ctx, cancel = context.WithTimeout(c, 100*time.Second)
 		defer cancel()
 
 		// check details before validation for commns
+		var userCollection *mongo.Collection = database.OpenCollection(client, "users")
+
 		count, err := userCollection.CountDocuments(ctx, bson.M{"email": user.Email})
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing user"})
@@ -62,8 +55,10 @@ func RegisterUser() gin.HandlerFunc {
 			return
 		}
 
-		user.UserID = bson.NewObjectID().Hex()
+		user.UserID = uuid.NewString() //bson.NewObjectID().Hex()
 		user.Password = pw
+		user.Role = "user"
+		user.Status = "active"
 		user.CreatedAt = time.Now()
 		user.UpdatedAt = time.Now()
 
@@ -77,7 +72,7 @@ func RegisterUser() gin.HandlerFunc {
 	}
 }
 
-func LoginUser() gin.HandlerFunc {
+func LoginUser(client *mongo.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var userLogin models.UserLogin
 
@@ -86,15 +81,16 @@ func LoginUser() gin.HandlerFunc {
 			return
 		}
 
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		var ctx, cancel = context.WithTimeout(c, 100*time.Second)
 		defer cancel()
 
 		// find matching user
 		var foundUser models.User
 
 		// check email
-		err := userCollection.FindOne(ctx, bson.M{"email": userLogin.Email}).Decode(&foundUser)
-		if err != nil {
+		var userCollection *mongo.Collection = database.OpenCollection(client, "users")
+
+		if err := userCollection.FindOne(ctx, bson.M{"email": userLogin.Email}).Decode(&foundUser); err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid login credentials"})
 			return
 		}
@@ -111,7 +107,7 @@ func LoginUser() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
 			return
 		}
-		if err = utils.UpdateAllTokens(foundUser.UserID, token, refreshToken); err != nil {
+		if err = utils.UpdateAllTokens(c, userCollection, foundUser.UserID, token, refreshToken); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update tokens"})
 			return
 		}

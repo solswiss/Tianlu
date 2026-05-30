@@ -2,11 +2,12 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	controller "github.com/solswiss/Tianlu/Server/TianluServer/controllers"
 )
 
-func SetupUnprotectedRoutes(router *gin.Engine) {
+func SetupUnprotectedRoutes(router *gin.Engine, client *mongo.Client) {
 	router.GET("/", func(c *gin.Context) {
 		c.String(200, "Welcome to Tianlu")
 	})
@@ -14,8 +15,8 @@ func SetupUnprotectedRoutes(router *gin.Engine) {
 		c.String(200, "Hello guest user :-)")
 	})
 
-	router.GET("/api/products", controller.GetProducts())
+	router.GET("/api/products", controller.GetProducts(client))
 
-	router.POST("/register", controller.RegisterUser())
-	router.POST("/login", controller.LoginUser())
+	router.POST("/api/register", controller.RegisterUser(client))
+	router.POST("/api/login", controller.LoginUser(client))
 }

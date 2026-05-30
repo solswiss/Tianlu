@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/solswiss/Tianlu/Server/TianluServer/models"
 	"github.com/solswiss/Tianlu/Server/TianluServer/services"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -16,8 +17,8 @@ import (
 )
 
 // SEARCH
-func SearchLocalProducts(coll *mongo.Collection, query string) ([]models.Product, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+func SearchLocalProducts(c *gin.Context, coll *mongo.Collection, query string) ([]models.Product, error) {
+	ctx, cancel := context.WithTimeout(c, 100*time.Second)
 	defer cancel()
 
 	// MongoDB text search filter
@@ -33,12 +34,12 @@ func SearchLocalProducts(coll *mongo.Collection, query string) ([]models.Product
 	// search local db
 	cursor, err := coll.Find(ctx, filter, opts)
 	if err != nil {
-		log.Printf("Warning: Failed Local DB product search | %s", err)
+		log.Printf("Warning: Failed Local DB product search: %s", err)
 		return []models.Product{}, err
 	}
 
 	if err = cursor.All(ctx, &localProducts); err != nil {
-		log.Printf("Warning: Failed Local DB product search | %s", err)
+		log.Printf("Warning: Failed Local DB product search: %s", err)
 		return []models.Product{}, err
 	}
 	// return or cache local products if found
@@ -67,7 +68,7 @@ func FilterUniqueProducts(a []models.Product, b []models.OFFProductResponse) []m
 	return result
 }
 
-func FormatOFFProduct(op models.OFFProductResponse) (models.Product, error) {
+func FormatOFFProduct(c *gin.Context, op models.OFFProductResponse) (models.Product, error) {
 	brand := ""
 	if len(op.Brands) > 0 {
 		brand = strings.TrimPrefix(op.Brands[0], "en:")
@@ -90,7 +91,7 @@ func FormatOFFProduct(op models.OFFProductResponse) (models.Product, error) {
 	}
 
 	AIContextString := strings.Join(data, " ")
-	AIRes, err := services.ClassifyProduct(AIContextString)
+	AIRes, err := services.ClassifyProduct(c, AIContextString)
 	if err != nil {
 		log.Printf("Warning: Service failed to profile product %s", op.Barcode)
 		return models.Product{}, errors.New("Service failed to profile product")
@@ -113,8 +114,8 @@ func FormatOFFProduct(op models.OFFProductResponse) (models.Product, error) {
 	}, nil
 }
 
-func InsertProducts(coll *mongo.Collection, products []models.Product) {
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+func InsertProducts(c *gin.Context, coll *mongo.Collection, products []models.Product) {
+	ctx, cancel := context.WithTimeout(c, 100*time.Second)
 	defer cancel()
 
 	documents := make([]any, len(products))
@@ -179,13 +180,13 @@ func GenerateProductUpsertPipeline(p models.Product) mongo.Pipeline {
 	}
 }
 
-func MergeSearchedProducts(coll *mongo.Collection, localProducts []models.Product, OFFProducts []models.OFFProductResponse) []models.Product {
+func MergeSearchedProducts(c *gin.Context, coll *mongo.Collection, localProducts []models.Product, OFFProducts []models.OFFProductResponse) []models.Product {
 	var mergedProducts []models.Product
 	newProducts := FilterUniqueProducts(localProducts, OFFProducts)
 	if len(newProducts) > 0 {
 		var formattedProducts []models.Product
 		for _, op := range newProducts {
-			p, err := FormatOFFProduct(op)
+			p, err := FormatOFFProduct(c, op)
 			if err != nil {
 				continue
 			}
@@ -195,14 +196,14 @@ func MergeSearchedProducts(coll *mongo.Collection, localProducts []models.Produc
 
 		// insert missing products to database as background process
 		if len(mergedProducts) > len(localProducts) {
-			go InsertProducts(coll, formattedProducts)
+			go InsertProducts(c, coll, formattedProducts)
 		}
 	}
 	return mergedProducts
 }
 
-func UpsertProducts(coll *mongo.Collection, products []models.Product) {
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+func UpsertProducts(c *gin.Context, coll *mongo.Collection, products []models.Product) {
+	ctx, cancel := context.WithTimeout(c, 100*time.Second)
 	defer cancel()
 
 	var documents []any

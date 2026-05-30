@@ -18,5 +18,5 @@ var Flavors = []string{
 }
 
 var Textures = []string{
-	"bready", "brittle", "carbonated", "chewy", "chunky", "coarse", "creamy", "crumbly", "crunchy", "dense", "delicate", "doughy", "effervescent", "elastic", "fibrous", "fizzy", "flaky", "foamy", "fleshy", "fudgy", "gelatinous", "gummy", "icy", "juicy", "melt-in-mouth", "oily", "pasty", "powdery", "puffed", "pulpy", "rubbery", "sandy", "slimy", "smooth", "spongy", "sticky", "syrupy", "velvety", "waxy", "gooey", "silky", "crispy", "airy", "fluffy", "tender", "rich", "fatty", "greasy",
+	"bready", "brittle", "carbonated", "chewy", "chunky", "coarse", "creamy", "crumbly", "crunchy", "dense", "delicate", "doughy", "effervescent", "elastic", "fibrous", "fizzy", "flaky", "foamy", "fleshy", "fudgy", "gelatinous", "gummy", "icy", "juicy", "melt-in-mouth", "oily", "pasty", "powdery", "puffed", "pulpy", "rubbery", "sandy", "slimy", "smooth", "spongy", "springy", "sticky", "syrupy", "velvety", "waxy", "gooey", "silky", "crispy", "airy", "fluffy", "tender", "rich", "fatty", "greasy",
 }

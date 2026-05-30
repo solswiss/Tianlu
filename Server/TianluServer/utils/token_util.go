@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/solswiss/Tianlu/Server/TianluServer/database"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -25,7 +24,6 @@ type SignedDetails struct {
 
 var SECRET_KEY string = os.Getenv("SECRET_KEY")
 var SECRET_REFRESH_KEY string = os.Getenv("SECRET_REFRESH_KEY")
-var userCollection *mongo.Collection = database.OpenCollection("users")
 
 func GenerateAllTokens(userID, username, email, role string) (string, string, error) {
 	// access token
@@ -69,8 +67,8 @@ func GenerateAllTokens(userID, username, email, role string) (string, string, er
 	return signedToken, signedrefreshToken, nil
 }
 
-func UpdateAllTokens(userID, token, refreshToken string) (err error) {
-	var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+func UpdateAllTokens(c *gin.Context, userCollection *mongo.Collection, userID, token, refreshToken string) (err error) {
+	var ctx, cancel = context.WithTimeout(c, 100*time.Second)
 	defer cancel()
 
 	updatedAt, _ := time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))

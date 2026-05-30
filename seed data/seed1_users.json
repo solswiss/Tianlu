@@ -1,0 +1,63 @@
+[{
+  "_id": {
+    "$oid": "6a1a3a51f5e68e64699c6757"
+  },
+  "user_id": "931c583a-8101-454c-9bee-c18c18c4360e",
+  "username": "sour_pout",
+  "email": "owbites@hotmail.com",
+  "password": "$2a$10$rss8YMQHPXTl3ou.dllfceFyihYU4p0Hrve.NEZPszBVC/cLdt4xC",
+  "role": "user",
+  "palate_profile": null,
+  "taste_summary": "",
+  "status": "active",
+  "token": "",
+  "refresh_token": "",
+  "created_at": {
+    "$date": "2026-05-30T01:16:01.030Z"
+  },
+  "updated_at": {
+    "$date": "2026-05-30T01:16:01.030Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a1a3b66f5e68e64699c6758"
+  },
+  "user_id": "b08f5273-b815-4ffd-a714-5e5b574d9570",
+  "username": "Bitterend",
+  "email": "bisonbrown@gmail.com",
+  "password": "$2a$10$Bu76YRy8BOLxG9SOFvxUw.G7xkilOVuvFbC5zxQLAJIm0yb/7ukM2",
+  "role": "user",
+  "palate_profile": null,
+  "taste_summary": "",
+  "status": "active",
+  "token": "",
+  "refresh_token": "",
+  "created_at": {
+    "$date": "2026-05-30T01:20:38.853Z"
+  },
+  "updated_at": {
+    "$date": "2026-05-30T01:20:38.853Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a1a3b9ef5e68e64699c6759"
+  },
+  "user_id": "51672905-144d-4cdf-8851-12deec82cbe8",
+  "username": "gummy_bear99",
+  "email": "99bears@gmail.com",
+  "password": "$2a$10$eDW2m1zhW0JOYvwL9dY/2eExlyT/YG2t4mITvZ8B3ZYmpYwVqujYG",
+  "role": "user",
+  "palate_profile": null,
+  "taste_summary": "",
+  "status": "active",
+  "token": "",
+  "refresh_token": "",
+  "created_at": {
+    "$date": "2026-05-30T01:21:34.584Z"
+  },
+  "updated_at": {
+    "$date": "2026-05-30T01:21:34.584Z"
+  }
+}]

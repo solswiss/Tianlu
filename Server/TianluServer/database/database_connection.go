@@ -14,11 +14,9 @@ import (
 )
 
 func Connect() *mongo.Client {
-	err := godotenv.Load(".env")
-	// associated with dev/deployment (cloud) mixup
-	if err != nil {
-		log.Println("Warning: unable to find .env file", err)
-		os.Exit(1)
+	if err := godotenv.Load(".env"); err != nil {
+		log.Printf("Warning: unable to find .env file: %v", err.Error())
+		return nil
 	}
 
 	MongoDB := os.Getenv("MONGODB_URI")
@@ -37,9 +35,7 @@ func Connect() *mongo.Client {
 	return client
 }
 
-var Client *mongo.Client = Connect()
-
-func SetupIndexes() {
+func SetupIndexes(client *mongo.Client) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 	defer cancel()
 
@@ -48,7 +44,7 @@ func SetupIndexes() {
 		Options: options.Index().SetUnique(true),
 	}
 
-	var coll = OpenCollection("products")
+	var coll = OpenCollection(client, "products")
 	if _, err := coll.Indexes().CreateOne(ctx, index); err != nil {
 		log.Fatalf("Failed to set product unique index: %s", err)
 	}
@@ -73,17 +69,16 @@ func SetupIndexes() {
 	log.Println("MongoDB indexes set up successfully")
 }
 
-func OpenCollection(collectionName string) *mongo.Collection {
-	err := godotenv.Load(".env")
-	// associated with dev/deployment (cloud) mixup
-	if err != nil {
-		log.Println("Warning: unable to find .env file")
+func OpenCollection(client *mongo.Client, collectionName string) *mongo.Collection {
+	if err := godotenv.Load(".env"); err != nil {
+		log.Printf("Warning: unable to find .env file: %v", err.Error())
+		return nil
 	}
 
 	databaseName := os.Getenv("DATABASE_NAME")
 	fmt.Println("DATABASE_NAME:", databaseName)
 
-	collection := Client.Database(databaseName).Collection(collectionName)
+	collection := client.Database(databaseName).Collection(collectionName)
 	if collection == nil {
 		return nil
 	}

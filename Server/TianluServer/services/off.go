@@ -10,10 +10,13 @@ import (
 )
 
 func FindOFFProduct(barcode string) (models.OFFProductResponse, error) {
-	// USING STAGING ENV | barcode search using v2 API
+	// fields of interest
+	fields := "_id,product_name,generic_name,quantity,food_groups,food_groups_tags,brands_tags,categories_tags,labels_tags,image_url,image_thumb_url,allergens_tags,ingredients_text,origin"
+
 	url := fmt.Sprintf(
-		"https://world.openfoodfacts.net/api/v2/product/%s",
+		"https://world.openfoodfacts.net/api/v2/product/%s?fields=%s",
 		url.QueryEscape(barcode),
+		fields,
 	)
 
 	// HTTP request (OFF requires custom user-agent header)

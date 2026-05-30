@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 
 	"github.com/solswiss/Tianlu/Server/TianluServer/models"
@@ -41,12 +42,13 @@ type ServiceResponse struct {
 	Description string   `json:"description"`
 }
 
-func ClassifyProduct(keywords string) (ServiceResponse, error) {
+func ClassifyProduct(c *gin.Context, keywords string) (ServiceResponse, error) {
 	if err := godotenv.Load(".env"); err != nil {
 		log.Println("Warning: Failed to load .env")
+		return ServiceResponse{}, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+	ctx, cancel := context.WithTimeout(c, 100*time.Second)
 	defer cancel()
 
 	serviceKey := os.Getenv("SERVICE_KEY")
